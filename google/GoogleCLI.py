@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import csv
 import datetime as dt
 import io
 import json
@@ -35,7 +36,7 @@ DEFAULT_TOKEN_PATH = pathlib.Path.home() / ".codex" / "token" / "google_token.js
 PROJECT_TOKEN_PATH = CLI_FUNCTIONS_ROOT / "google" / "token" / "token.json"
 READ_STATUS_CHOICES = ("all", "unread", "read")
 LABEL_CHOICES = ("INBOX", "SPAM", "SENT", "TRASH", "STARRED", "IMPORTANT", "ALL")
-OUTPUT_FORMAT_CHOICES = ("text", "json")
+OUTPUT_FORMAT_CHOICES = ("text", "json", "csv", "ndjson")
 DEFAULT_TOP_LIMIT = 20
 
 GMAIL_ANALYZE_CATEGORY_KEYWORDS = {
@@ -1137,7 +1138,119 @@ def _print_and_exit(message: str, code: int = 0) -> int:
     return code
 
 
+def _is_scalar_value(value: Any) -> bool:
+    return value is None or isinstance(value, (str, int, float, bool))
+
+
+def _to_json_compatible(payload: Any) -> Any:
+    if isinstance(payload, (dict, list, int, float, bool)) or payload is None:
+        return payload
+    return {"message": str(payload)}
+
+
+def _to_cell_value(value: Any) -> Any:
+    if _is_scalar_value(value):
+        return value
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _to_tabular_rows(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        if all(isinstance(item, dict) for item in payload):
+            return [{key: _to_cell_value(value) for key, value in item.items()} for item in payload]
+        return [{"index": idx, "value": _to_cell_value(item)} for idx, item in enumerate(payload)]
+
+    if isinstance(payload, dict):
+        rows: list[dict[str, Any]] = []
+        scalar_items = []
+        for key, value in payload.items():
+            if _is_scalar_value(value):
+                scalar_items.append((key, value))
+                continue
+            if isinstance(value, dict):
+                for subkey, subvalue in value.items():
+                    rows.append({"section": key, "key": subkey, "value": _to_cell_value(subvalue)})
+                continue
+            if isinstance(value, list):
+                if all(isinstance(item, dict) for item in value):
+                    for item in value:
+                        row = {"section": key}
+                        row.update({item_key: _to_cell_value(item_value) for item_key, item_value in item.items()})
+                        rows.append(row)
+                else:
+                    for idx, item in enumerate(value):
+                        rows.append({"section": key, "index": idx, "value": _to_cell_value(item)})
+                continue
+            rows.append({"section": key, "value": _to_cell_value(value)})
+
+        for key, value in scalar_items:
+            rows.append({"section": "summary", "key": key, "value": _to_cell_value(value)})
+        return rows
+
+    return [{"value": _to_cell_value(payload)}]
+
+
+def _render_csv(payload: Any) -> str:
+    rows = _to_tabular_rows(payload)
+    if not rows:
+        return ""
+
+    fieldnames: list[str] = []
+    for row in rows:
+        for key in row.keys():
+            if key not in fieldnames:
+                fieldnames.append(key)
+
+    output_buffer = io.StringIO()
+    writer = csv.DictWriter(output_buffer, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({name: row.get(name, "") for name in fieldnames})
+    return output_buffer.getvalue().rstrip("\n")
+
+
+def _render_ndjson(payload: Any) -> str:
+    if isinstance(payload, list):
+        entries = payload
+    else:
+        entries = [payload]
+    lines = [json.dumps(_to_json_compatible(entry), ensure_ascii=False) for entry in entries]
+    return "\n".join(lines)
+
+
+def _render_output(payload: Any, output_format: str) -> str:
+    if output_format == "json":
+        return json.dumps(_to_json_compatible(payload), ensure_ascii=False, indent=2)
+    if output_format == "csv":
+        return _render_csv(payload)
+    if output_format == "ndjson":
+        return _render_ndjson(payload)
+
+    if isinstance(payload, str):
+        return payload
+    if isinstance(payload, (int, float, bool)):
+        return str(payload)
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _emit_output(payload: Any, args: argparse.Namespace, code: int = 0) -> int:
+    output_format = getattr(args, "output_format", "text")
+    rendered = _render_output(payload, output_format)
+
+    output = sys.stderr if code else sys.stdout
+    print(rendered, file=output)
+
+    output_file = getattr(args, "output_file", None)
+    if output_file:
+        out_path = pathlib.Path(output_file).expanduser()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(f"{rendered}\n", encoding="utf-8")
+
+    return code
+
+
 def main(argv: list[str] | None = None) -> int:
+    args: argparse.Namespace | None = None
     try:
         load_cli_env()
         parser = build_parser()
@@ -1148,8 +1261,9 @@ def main(argv: list[str] | None = None) -> int:
                 sender = args.from_email or os.getenv("EMAIL_USER")
                 password = args.password or os.getenv("EMAIL_PASSWORD")
                 if not sender or not password:
-                    return _print_and_exit(
+                    return _emit_output(
                         "SMTP credentials missing. Use --from-email/--password or EMAIL_USER/EMAIL_PASSWORD.",
+                        args,
                         code=2,
                     )
                 result = smtp_send_email(
@@ -1161,7 +1275,7 @@ def main(argv: list[str] | None = None) -> int:
                     attachments=args.attachment,
                     html=args.html,
                 )
-                return _print_and_exit(result)
+                return _emit_output(result, args)
 
             service = get_service(
                 args,
@@ -1170,13 +1284,14 @@ def main(argv: list[str] | None = None) -> int:
                 scopes=resolve_scopes_for_command(args),
             )
             if args.gmail_cmd == "list":
-                return _print_and_exit(
+                return _emit_output(
                     gmail_list_messages(
                         service=service,
                         max_results=args.max_results,
                         label=args.label,
                         read_status=args.read_status,
-                    )
+                    ),
+                    args,
                 )
             if args.gmail_cmd == "count":
                 total = gmail_count_messages(
@@ -1184,53 +1299,74 @@ def main(argv: list[str] | None = None) -> int:
                     label=args.label,
                     read_status=args.read_status,
                 )
-                return _print_and_exit(str(total))
+                return _emit_output(total, args)
             if args.gmail_cmd == "get-by-subject":
-                return _print_and_exit(
+                return _emit_output(
                     gmail_get_by_subject(
                         service=service,
                         subject=args.subject,
                         label=args.label,
                         read_status=args.read_status,
                         render_html=args.render_html,
-                    )
+                    ),
+                    args,
                 )
             if args.gmail_cmd == "list-by-sender":
-                return _print_and_exit(
+                return _emit_output(
                     gmail_list_by_sender(
                         service=service,
                         sender=args.sender,
                         max_results=args.max_results,
                         label=args.label,
                         read_status=args.read_status,
-                    )
+                    ),
+                    args,
                 )
             if args.gmail_cmd == "unique-senders":
-                return _print_and_exit(
+                return _emit_output(
                     gmail_list_unique_senders(
                         service=service,
                         label=args.label,
                         read_status=args.read_status,
                         max_scan=args.max_scan,
-                    )
+                    ),
+                    args,
                 )
             if args.gmail_cmd == "search":
-                return _print_and_exit(
+                return _emit_output(
                     gmail_search_messages(
                         service=service,
                         query=args.query,
                         max_results=args.max_results,
                         label=args.label,
                         read_status=args.read_status,
-                    )
+                    ),
+                    args,
                 )
             if args.gmail_cmd == "read-by-id":
-                return _print_and_exit(
+                return _emit_output(
                     gmail_read_by_id(
                         service=service,
                         message_id=args.message_id,
                         render_html=args.render_html,
-                    )
+                    ),
+                    args,
+                )
+            if args.gmail_cmd == "analyze":
+                if args.top <= 0:
+                    return _emit_output("--top deve ser maior que zero.", args, code=2)
+                if args.max_scan < 0:
+                    return _emit_output("--max-scan nao pode ser negativo.", args, code=2)
+                return _emit_output(
+                    gmail_analyze_messages(
+                        service=service,
+                        label=args.label,
+                        read_status=args.read_status,
+                        query=args.query,
+                        max_scan=args.max_scan,
+                        top=args.top,
+                    ),
+                    args,
                 )
 
         if args.service == "drive":
@@ -1241,14 +1377,15 @@ def main(argv: list[str] | None = None) -> int:
                 scopes=resolve_scopes_for_command(args),
             )
             if args.drive_cmd == "list":
-                return _print_and_exit(drive_list_files(service, max_results=args.max_results))
+                return _emit_output(drive_list_files(service, max_results=args.max_results), args)
             if args.drive_cmd == "download":
-                return _print_and_exit(
+                return _emit_output(
                     drive_download_file(
                         service=service,
                         file_name=args.file_name,
                         destination_path=args.destination_path,
-                    )
+                    ),
+                    args,
                 )
 
         if args.service == "calendar":
@@ -1259,11 +1396,12 @@ def main(argv: list[str] | None = None) -> int:
                 scopes=resolve_scopes_for_command(args),
             )
             if args.calendar_cmd == "list-upcoming":
-                return _print_and_exit(
-                    calendar_list_upcoming(service, max_results=args.max_results)
+                return _emit_output(
+                    calendar_list_upcoming(service, max_results=args.max_results),
+                    args,
                 )
             if args.calendar_cmd == "create-event":
-                return _print_and_exit(
+                return _emit_output(
                     calendar_create_event(
                         service=service,
                         summary=args.summary,
@@ -1274,11 +1412,16 @@ def main(argv: list[str] | None = None) -> int:
                         attendees=args.attendee,
                         reminders_json=args.reminders_json,
                         extra_fields_json=args.extra_fields_json,
-                    )
+                    ),
+                    args,
                 )
 
+        if args is not None:
+            return _emit_output("Comando invalido.", args, code=2)
         return _print_and_exit("Comando invalido.", code=2)
     except Exception as exc:
+        if args is not None:
+            return _emit_output(f"Erro: {exc}", args, code=1)
         return _print_and_exit(f"Erro: {exc}", code=1)
 
 
