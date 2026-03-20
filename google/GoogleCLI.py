@@ -22,7 +22,7 @@ from email.mime.text import MIMEText
 from typing import Any, Iterable
 
 
-CLI_FUNCTIONS_ROOT = pathlib.Path("/home/techbrain/CLI-Functions")
+CLI_FUNCTIONS_ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT_DOTENV_PATH = CLI_FUNCTIONS_ROOT / ".env"
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
@@ -570,18 +570,20 @@ def gmail_list_messages(service, max_results: int, label: str, read_status: str)
             userId="me",
             id=msg["id"],
             format="metadata",
-            metadataHeaders=["Subject", "From", "Date"],
+            metadataHeaders=["Subject", "From", "Date", "Message-ID"],
         ).execute()
         headers = detail.get("payload", {}).get("headers", [])
         subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(no subject)")
         from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(unknown)")
         date = next((h["value"] for h in headers if h["name"] == "Date"), "(no date)")
+        message_id_hdr = next((h["value"] for h in headers if h["name"] == "Message-ID"), "")
         output_lines.extend(
             [
                 f"- ID: {msg['id']}",
                 f"  From: {from_addr}",
                 f"  Subject: {subject}",
                 f"  Date: {date}",
+                f"  Message-ID: {message_id_hdr}",
                 "",
             ]
         )
@@ -703,12 +705,13 @@ def gmail_search_messages(
             userId="me",
             id=msg["id"],
             format="metadata",
-            metadataHeaders=["Subject", "From", "Date"],
+            metadataHeaders=["Subject", "From", "Date", "Message-ID"],
         ).execute()
         headers = detail.get("payload", {}).get("headers", [])
         subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(no subject)")
         from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(unknown)")
         date = next((h["value"] for h in headers if h["name"] == "Date"), "(no date)")
+        message_id_hdr = next((h["value"] for h in headers if h["name"] == "Message-ID"), "")
         snippet = detail.get("snippet", "")
         lines.extend(
             [
@@ -717,6 +720,7 @@ def gmail_search_messages(
                 f"  From: {from_addr}",
                 f"  Subject: {subject}",
                 f"  Date: {date}",
+                f"  Message-ID: {message_id_hdr}",
                 f"  Snippet: {snippet}",
                 "",
             ]
@@ -731,6 +735,7 @@ def gmail_read_by_id(service, message_id: str, render_html: bool) -> str:
     from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(unknown)")
     date = next((h["value"] for h in headers if h["name"] == "Date"), "(no date)")
     to_addr = next((h["value"] for h in headers if h["name"] == "To"), "(unknown)")
+    message_id_hdr = next((h["value"] for h in headers if h["name"] == "Message-ID"), "")
 
     content = _extract_message_content(msg.get("payload", {}))
     if render_html:
@@ -741,6 +746,7 @@ def gmail_read_by_id(service, message_id: str, render_html: bool) -> str:
         [
             f"ID: {message_id}",
             f"Thread: {msg.get('threadId', '')}",
+            f"Message-ID: {message_id_hdr}",
             f"From: {from_addr}",
             f"To: {to_addr}",
             f"Subject: {subject}",
@@ -859,12 +865,16 @@ def smtp_send_email(
     password: str,
     attachments: list[str] | None,
     html: bool,
+    in_reply_to: str | None = None,
 ) -> str:
     msg = MIMEMultipart()
     msg["From"] = sender
     msg["Subject"] = subject
     recipients = list(recipients)
     msg["To"] = ", ".join(recipients)
+    if in_reply_to:
+        msg["In-Reply-To"] = in_reply_to
+        msg["References"] = in_reply_to
 
     body_type = "html" if html else "plain"
     msg.attach(MIMEText(body, body_type, "utf-8"))
@@ -1070,10 +1080,13 @@ def build_parser() -> argparse.ArgumentParser:
     g_send.add_argument("--subject", required=True)
     g_send.add_argument("--body", required=True)
     g_send.add_argument("--to", nargs="+", required=True)
-    g_send.add_argument("--from-email", dest="from_email", help="Sender Gmail address")
-    g_send.add_argument("--password", help="Gmail app password")
     g_send.add_argument("--attachment", action="append", default=[])
     g_send.add_argument("--html", action="store_true")
+    g_send.add_argument(
+        "--in-reply-to",
+        default=None,
+        help="Message-ID header of the email to reply to (enables threading).",
+    )
 
     g_search = gmail_sub.add_parser("search", help="Search emails using Gmail query syntax")
     g_search.add_argument("--query", required=True, help="Gmail query (from:, subject:, newer_than:, etc.)")
@@ -1253,11 +1266,11 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.service == "gmail":
             if args.gmail_cmd == "send-smtp":
-                sender = args.from_email or os.getenv("EMAIL_USER")
-                password = args.password or os.getenv("EMAIL_PASSWORD")
+                sender = os.getenv("EMAIL_USER")
+                password = os.getenv("EMAIL_PASSWORD")
                 if not sender or not password:
                     return _emit_output(
-                        "SMTP credentials missing. Use --from-email/--password or EMAIL_USER/EMAIL_PASSWORD.",
+                        "SMTP credentials missing. Ensure EMAIL_USER and EMAIL_PASSWORD are set in the .env file.",
                         args,
                         code=2,
                     )
@@ -1269,6 +1282,7 @@ def main(argv: list[str] | None = None) -> int:
                     password=password,
                     attachments=args.attachment,
                     html=args.html,
+                    in_reply_to=args.in_reply_to,
                 )
                 return _emit_output(result, args)
 
