@@ -2,4 +2,4 @@
 token/
 .venv/
 __pycache__/
-.env
+../.env
