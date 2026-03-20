@@ -40,18 +40,18 @@ OUTPUT_FORMAT_CHOICES = ("text", "json", "csv", "ndjson")
 DEFAULT_TOP_LIMIT = 20
 
 GMAIL_ANALYZE_CATEGORY_KEYWORDS = {
-    "Carreira e vagas": (
+    "Career and jobs": (
         "linkedin",
-        "vaga",
-        "vagas.com",
+        "job",
+        "jobboard",
         "job alert",
-        "candidatura",
+        "application",
         "recruit",
         "catho",
         "jobleads",
         "gupy",
     ),
-    "Tech e desenvolvimento": (
+    "Tech and development": (
         "github",
         "gitlab",
         "devpost",
@@ -61,9 +61,9 @@ GMAIL_ANALYZE_CATEGORY_KEYWORDS = {
         "api",
         "deploy",
     ),
-    "Estudos e cursos": (
-        "curso",
-        "certificado",
+    "Education and courses": (
+        "course",
+        "certificate",
         "learning",
         "cambly",
         "udemy",
@@ -71,37 +71,32 @@ GMAIL_ANALYZE_CATEGORY_KEYWORDS = {
         "coursera",
         "dio",
     ),
-    "Financeiro e compras": (
-        "fatura",
+    "Finance and purchases": (
         "invoice",
-        "boleto",
-        "pagamento",
+        "bill",
         "payment",
-        "nota fiscal",
-        "pedido",
+        "tax invoice",
         "order",
-        "recibo",
+        "receipt",
     ),
-    "Seguranca e acesso": (
-        "codigo",
+    "Security and access": (
+        "code",
         "verification",
         "otp",
         "2fa",
         "login",
-        "senha",
         "security",
         "signin",
         "password",
     ),
-    "Social e comunidade": (
+    "Social and community": (
         "tiktok",
         "twitch",
         "community",
-        "comunidade",
         "academia-mail",
         "discord",
     ),
-    "Newsletters e conteudo": (
+    "Newsletters and content": (
         "newsletter",
         "digest",
         "medium",
@@ -113,13 +108,13 @@ GMAIL_ANALYZE_CATEGORY_KEYWORDS = {
 }
 
 GMAIL_ANALYZE_CATEGORY_PRIORITY = (
-    "Seguranca e acesso",
-    "Financeiro e compras",
-    "Carreira e vagas",
-    "Estudos e cursos",
-    "Tech e desenvolvimento",
-    "Social e comunidade",
-    "Newsletters e conteudo",
+    "Security and access",
+    "Finance and purchases",
+    "Career and jobs",
+    "Education and courses",
+    "Tech and development",
+    "Social and community",
+    "Newsletters and content",
 )
 
 
@@ -504,8 +499,8 @@ def gmail_analyze_messages(
                 unread += 1
 
             headers = detail.get("payload", {}).get("headers", [])
-            subject = _get_header_value(headers, "Subject", "(sem assunto)")
-            from_addr = _get_header_value(headers, "From", "(desconhecido)")
+            subject = _get_header_value(headers, "Subject", "(no subject)")
+            from_addr = _get_header_value(headers, "From", "(unknown)")
 
             display_name, email_addr = parseaddr(from_addr)
             email_addr = email_addr.lower().strip()
@@ -514,7 +509,7 @@ def gmail_analyze_messages(
             elif email_addr:
                 sender_key = email_addr
             else:
-                sender_key = from_addr.strip() or "(desconhecido)"
+                sender_key = from_addr.strip() or "(unknown)"
             sender_counts[sender_key] += 1
 
             if "@" in email_addr:
@@ -567,9 +562,9 @@ def gmail_list_messages(service, max_results: int, label: str, read_status: str)
     results = service.users().messages().list(**list_params).execute()
     messages = results.get("messages", [])
     if not messages:
-        return f"Nenhum e-mail encontrado em '{label}'."
+        return f"No emails found in '{label}'."
 
-    output_lines = [f"E-mails em '{label}' ({read_status}) - {len(messages)} encontrado(s):", ""]
+    output_lines = [f"Emails in '{label}' ({read_status}) - {len(messages)} found:", ""]
     for msg in messages:
         detail = service.users().messages().get(
             userId="me",
@@ -578,15 +573,15 @@ def gmail_list_messages(service, max_results: int, label: str, read_status: str)
             metadataHeaders=["Subject", "From", "Date"],
         ).execute()
         headers = detail.get("payload", {}).get("headers", [])
-        subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(sem assunto)")
-        from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(desconhecido)")
-        date = next((h["value"] for h in headers if h["name"] == "Date"), "(sem data)")
+        subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(no subject)")
+        from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(unknown)")
+        date = next((h["value"] for h in headers if h["name"] == "Date"), "(no date)")
         output_lines.extend(
             [
                 f"- ID: {msg['id']}",
-                f"  De: {from_addr}",
-                f"  Assunto: {subject}",
-                f"  Data: {date}",
+                f"  From: {from_addr}",
+                f"  Subject: {subject}",
+                f"  Date: {date}",
                 "",
             ]
         )
@@ -634,12 +629,12 @@ def gmail_get_by_subject(
     results = service.users().messages().list(**params).execute()
     messages = results.get("messages", [])
     if not messages:
-        return f"Nenhum e-mail encontrado com assunto '{subject}' em '{label}'."
+        return f"No emails found with subject '{subject}' in '{label}'."
 
     if len(messages) > 1:
         lines = [
-            f"{len(messages)} e-mails encontrados com assunto '{subject}'.",
-            "Use `gmail read-by-id --id <MESSAGE_ID>` para ler o e-mail correto.",
+            f"{len(messages)} emails found with subject '{subject}'.",
+            "Use `gmail read-by-id --id <MESSAGE_ID>` to read the specific email.",
             "",
         ]
         for msg in messages:
@@ -650,15 +645,15 @@ def gmail_get_by_subject(
                 metadataHeaders=["Subject", "From", "Date"],
             ).execute()
             headers = detail.get("payload", {}).get("headers", [])
-            subject_hdr = next((h["value"] for h in headers if h["name"] == "Subject"), "(sem assunto)")
-            from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(desconhecido)")
-            date = next((h["value"] for h in headers if h["name"] == "Date"), "(sem data)")
+            subject_hdr = next((h["value"] for h in headers if h["name"] == "Subject"), "(no subject)")
+            from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(unknown)")
+            date = next((h["value"] for h in headers if h["name"] == "Date"), "(no date)")
             lines.extend(
                 [
                     f"- ID: {msg['id']}",
-                    f"  De: {from_addr}",
-                    f"  Assunto: {subject_hdr}",
-                    f"  Data: {date}",
+                    f"  From: {from_addr}",
+                    f"  Subject: {subject_hdr}",
+                    f"  Date: {date}",
                     "",
                 ]
             )
@@ -700,9 +695,9 @@ def gmail_search_messages(
             break
 
     if not messages:
-        return f"Nenhum e-mail encontrado para query: {query}"
+        return f"No emails found for query: {query}"
 
-    lines = [f"Resultados para query: {query}", f"{len(messages)} e-mail(s) encontrado(s):", ""]
+    lines = [f"Results for query: {query}", f"{len(messages)} email(s) found:", ""]
     for msg in messages:
         detail = service.users().messages().get(
             userId="me",
@@ -711,18 +706,18 @@ def gmail_search_messages(
             metadataHeaders=["Subject", "From", "Date"],
         ).execute()
         headers = detail.get("payload", {}).get("headers", [])
-        subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(sem assunto)")
-        from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(desconhecido)")
-        date = next((h["value"] for h in headers if h["name"] == "Date"), "(sem data)")
+        subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(no subject)")
+        from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(unknown)")
+        date = next((h["value"] for h in headers if h["name"] == "Date"), "(no date)")
         snippet = detail.get("snippet", "")
         lines.extend(
             [
                 f"- ID: {msg['id']}",
                 f"  Thread: {msg.get('threadId', '')}",
-                f"  De: {from_addr}",
-                f"  Assunto: {subject}",
-                f"  Data: {date}",
-                f"  Trecho: {snippet}",
+                f"  From: {from_addr}",
+                f"  Subject: {subject}",
+                f"  Date: {date}",
+                f"  Snippet: {snippet}",
                 "",
             ]
         )
@@ -732,24 +727,24 @@ def gmail_search_messages(
 def gmail_read_by_id(service, message_id: str, render_html: bool) -> str:
     msg = service.users().messages().get(userId="me", id=message_id, format="full").execute()
     headers = msg.get("payload", {}).get("headers", [])
-    subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(sem assunto)")
-    from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(desconhecido)")
-    date = next((h["value"] for h in headers if h["name"] == "Date"), "(sem data)")
-    to_addr = next((h["value"] for h in headers if h["name"] == "To"), "(desconhecido)")
+    subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(no subject)")
+    from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(unknown)")
+    date = next((h["value"] for h in headers if h["name"] == "Date"), "(no date)")
+    to_addr = next((h["value"] for h in headers if h["name"] == "To"), "(unknown)")
 
     content = _extract_message_content(msg.get("payload", {}))
     if render_html:
         content = render_html_terminal(content)
-    content = content or "(conteudo vazio)"
+    content = content or "(empty content)"
 
     return "\n".join(
         [
             f"ID: {message_id}",
             f"Thread: {msg.get('threadId', '')}",
-            f"De: {from_addr}",
-            f"Para: {to_addr}",
-            f"Assunto: {subject}",
-            f"Data: {date}",
+            f"From: {from_addr}",
+            f"To: {to_addr}",
+            f"Subject: {subject}",
+            f"Date: {date}",
             "",
             content,
         ]
@@ -772,9 +767,9 @@ def gmail_list_by_sender(
     results = service.users().messages().list(**params).execute()
     messages = results.get("messages", [])
     if not messages:
-        return f"Nenhum e-mail encontrado do remetente '{sender}' em '{label}'."
+        return f"No emails found from sender '{sender}' in '{label}'."
 
-    lines = [f"E-mails de '{sender}' em '{label}' ({read_status}) - {len(messages)} encontrado(s):", ""]
+    lines = [f"Emails from '{sender}' in '{label}' ({read_status}) - {len(messages)} found:", ""]
     for msg in messages:
         detail = service.users().messages().get(
             userId="me",
@@ -783,15 +778,15 @@ def gmail_list_by_sender(
             metadataHeaders=["Subject", "From", "Date"],
         ).execute()
         headers = detail.get("payload", {}).get("headers", [])
-        subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(sem assunto)")
-        from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(desconhecido)")
-        date = next((h["value"] for h in headers if h["name"] == "Date"), "(sem data)")
+        subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(no subject)")
+        from_addr = next((h["value"] for h in headers if h["name"] == "From"), "(unknown)")
+        date = next((h["value"] for h in headers if h["name"] == "Date"), "(no date)")
         lines.extend(
             [
                 f"- ID: {msg['id']}",
-                f"  De: {from_addr}",
-                f"  Assunto: {subject}",
-                f"  Data: {date}",
+                f"  From: {from_addr}",
+                f"  Subject: {subject}",
+                f"  Date: {date}",
                 "",
             ]
         )
@@ -828,7 +823,7 @@ def gmail_list_unique_senders(
             break
 
     if not messages:
-        return f"Nenhum e-mail encontrado em '{label}'."
+        return f"No emails found in '{label}'."
 
     senders = []
     for msg in messages:
@@ -847,10 +842,10 @@ def gmail_list_unique_senders(
             continue
 
     if not senders:
-        return "Nao foi possivel extrair remetentes dos e-mails."
+        return "Could not extract senders from emails."
 
     sender_counts = Counter(senders).most_common()
-    lines = [f"Remetentes unicos em '{label}' ({read_status}) - {len(sender_counts)} encontrado(s):", ""]
+    lines = [f"Unique senders in '{label}' ({read_status}) - {len(sender_counts)} found:", ""]
     for sender, count in sender_counts:
         lines.append(f"- [{count}x] {sender}")
     return "\n".join(lines).strip()
@@ -877,7 +872,7 @@ def smtp_send_email(
     if attachments:
         for file_path in attachments:
             if not os.path.exists(file_path):
-                print(f"Aviso: arquivo nao encontrado: {file_path}", file=sys.stderr)
+                print(f"Warning: file not found: {file_path}", file=sys.stderr)
                 continue
             with open(file_path, "rb") as f:
                 part = MIMEBase("application", "octet-stream")
@@ -893,7 +888,7 @@ def smtp_send_email(
         server.starttls()
         server.login(sender, password)
         server.send_message(msg)
-    return "Email enviado com sucesso."
+    return "Email sent successfully."
 
 
 def drive_list_files(service, max_results: int) -> str:
@@ -903,10 +898,10 @@ def drive_list_files(service, max_results: int) -> str:
     ).execute()
     files = results.get("files", [])
     if not files:
-        return "Nenhum arquivo encontrado."
-    lines = ["Arquivos do Drive:", ""]
+        return "No files found."
+    lines = ["Drive files:", ""]
     for item in files:
-        lines.append(f"- {item['name']} (ID: {item['id']}, tipo: {item['mimeType']})")
+        lines.append(f"- {item['name']} (ID: {item['id']}, type: {item['mimeType']})")
     return "\n".join(lines)
 
 
@@ -915,7 +910,7 @@ def drive_download_file(service, file_name: str, destination_path: str | None) -
     results = service.files().list(q=query, fields="files(id, name, mimeType)").execute()
     items = results.get("files", [])
     if not items:
-        return f"Arquivo '{file_name}' nao encontrado no Drive."
+        return f"File '{file_name}' not found in Drive."
 
     file_id = items[0]["id"]
     target_dir = pathlib.Path(destination_path).expanduser() if destination_path else pathlib.Path.cwd()
@@ -933,7 +928,7 @@ def drive_download_file(service, file_name: str, destination_path: str | None) -
                 pct = int(status.progress() * 100)
                 print(f"Download: {pct}%")
 
-    return f"Arquivo salvo em: {file_path}"
+    return f"File saved at: {file_path}"
 
 
 def calendar_list_upcoming(service, max_results: int) -> str:
@@ -947,12 +942,12 @@ def calendar_list_upcoming(service, max_results: int) -> str:
     ).execute().get("items", [])
 
     if not events:
-        return "Nenhum evento futuro encontrado."
+        return "No upcoming events found."
 
-    lines = ["Proximos eventos:", ""]
+    lines = ["Upcoming events:", ""]
     for event in events:
         start = event.get("start", {}).get("dateTime", event.get("start", {}).get("date", ""))
-        summary = event.get("summary", "(sem titulo)")
+        summary = event.get("summary", "(no title)")
         lines.append(f"- {start} - {summary}")
     return "\n".join(lines)
 
@@ -989,7 +984,7 @@ def calendar_create_event(
         body=event_body,
         sendUpdates="all",
     ).execute()
-    return f"Evento criado: {created.get('htmlLink', '(sem link)')}"
+    return f"Event created: {created.get('htmlLink', '(no link)')}"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1354,9 +1349,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if args.gmail_cmd == "analyze":
                 if args.top <= 0:
-                    return _emit_output("--top deve ser maior que zero.", args, code=2)
+                    return _emit_output("--top must be greater than zero.", args, code=2)
                 if args.max_scan < 0:
-                    return _emit_output("--max-scan nao pode ser negativo.", args, code=2)
+                    return _emit_output("--max-scan cannot be negative.", args, code=2)
                 return _emit_output(
                     gmail_analyze_messages(
                         service=service,
@@ -1417,12 +1412,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
         if args is not None:
-            return _emit_output("Comando invalido.", args, code=2)
-        return _print_and_exit("Comando invalido.", code=2)
+            return _emit_output("Invalid command.", args, code=2)
+        return _print_and_exit("Invalid command.", code=2)
     except Exception as exc:
         if args is not None:
-            return _emit_output(f"Erro: {exc}", args, code=1)
-        return _print_and_exit(f"Erro: {exc}", code=1)
+            return _emit_output(f"Error: {exc}", args, code=1)
+        return _print_and_exit(f"Error: {exc}", code=1)
 
 
 if __name__ == "__main__":
