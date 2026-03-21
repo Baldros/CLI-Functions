@@ -34,6 +34,7 @@ CALENDAR_EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events"
 CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar"
 DEFAULT_TOKEN_PATH = pathlib.Path.home() / ".codex" / "token" / "google_token.json"
 PROJECT_TOKEN_PATH = CLI_FUNCTIONS_ROOT / "google" / "token" / "token.json"
+PROJECT_CREDENTIALS_PATH = CLI_FUNCTIONS_ROOT / "google" / "credentials" / "client_secret.json"
 READ_STATUS_CHOICES = ("all", "unread", "read")
 LABEL_CHOICES = ("INBOX", "SPAM", "SENT", "TRASH", "STARRED", "IMPORTANT", "ALL")
 OUTPUT_FORMAT_CHOICES = ("text", "json", "csv", "ndjson")
@@ -216,6 +217,9 @@ def resolve_client_config(args: argparse.Namespace) -> dict[str, Any]:
         config_file = pathlib.Path(os.getenv("GOOGLE_CLIENT_SECRET_FILE", "")).expanduser()
     if config_file:
         return _load_client_config_from_file(config_file)
+
+    if PROJECT_CREDENTIALS_PATH.exists():
+        return _load_client_config_from_file(PROJECT_CREDENTIALS_PATH)
 
     raise RuntimeError(
         "Client config not found. Provide one of: "
