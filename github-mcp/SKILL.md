@@ -29,6 +29,7 @@ Before executing multi-step work:
 
 ## Behavior Rules
 
+- Always call `get_me` to identify the authenticated user before any operation when no profile name is explicitly provided by the user. `get_me` may be skipped only if the user explicitly passes the target profile or organization name they want to inspect.
 - Never claim success without tool evidence.
 - Never invent tool names not exposed by MCP.
 - If a requested capability exists in this skill but is not exposed in the current session, say so explicitly.
@@ -63,7 +64,7 @@ When a tool call fails, classify and respond like this:
 
 ### Flow: List user repositories (the one we used)
 
-1. Call `get_me` to get authenticated login.
+1. Call `get_me` to get the user name. 
 2. Call `search_repositories` with query `user:<login>`.
 3. If user asks for ordering by update date, sort by `updated_at desc` in result handling.
 4. Return repository name, visibility, updated date, and URL.
@@ -104,7 +105,7 @@ When a tool call fails, classify and respond like this:
 ## Full Tool Catalog (Directly From MCP Endpoint)
 
 The following tools were collected directly from GitHub MCP endpoint (`tools/list`) during skill creation.
-
+- `get_me`: ⭐ **One of the most critical tools in this catalog.** Returns the authenticated GitHub user's login, ID, and profile metadata. Must be called at the start of any operation where the target user is not explicitly specified — it is the source of truth for who is making the request. Without it, all user-scoped operations (listing repos, searching issues by author, etc.) risk targeting the wrong profile.
 - `add_comment_to_pending_review`: Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure).
 - `add_issue_comment`: Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments.
 - `add_reply_to_pull_request_comment`: Add a reply to an existing pull request comment. This creates a new comment that is linked as a reply to the specified comment.
