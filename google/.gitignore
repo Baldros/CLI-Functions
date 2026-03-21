@@ -3,3 +3,4 @@ token/
 .venv/
 __pycache__/
 google/.env
+client_secret.json
