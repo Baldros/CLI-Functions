@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub MCP"
+  short_description: "Help with GitHub MCP tasks and workflows"
+  default_prompt: "Use $github-mcp to complete this GitHub task via MCP tools."
