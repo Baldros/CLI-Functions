@@ -30,6 +30,7 @@ Before executing multi-step work:
 ## Behavior Rules
 
 - Always call `get_me` to identify the authenticated user before any operation when no profile name is explicitly provided by the user. `get_me` may be skipped only if the user explicitly passes the target profile or organization name they want to inspect.
+- Never use gh commands. The user may not have the gh and you don't need it.
 - Never claim success without tool evidence.
 - Never invent tool names not exposed by MCP.
 - If a requested capability exists in this skill but is not exposed in the current session, say so explicitly.
