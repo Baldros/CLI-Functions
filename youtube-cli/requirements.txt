@@ -1,0 +1,5 @@
+yt-dlp
+google-api-python-client
+youtube-transcript-api
+python-dotenv
+typing-extensions
