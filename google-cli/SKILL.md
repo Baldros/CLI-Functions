@@ -1,6 +1,6 @@
 ---
 name: google-cli
-description: Use the local Google terminal CLI at <path_to_GoogleCLI.py> for Gmail, Google Drive, and Google Calendar tasks. Use this when asked to list/read/search/analyze emails, send SMTP emails, list/download Drive files, or list/create calendar events.
+description: Use the local Google terminal CLI at C:\Users\amori\Documents\CLI-Functions\google-cli\GoogleCLI.py for Gmail, Google Drive, and Google Calendar tasks. Use this when asked to list/read/search/analyze emails, send SMTP emails, list/download Drive files, or list/create calendar events.
 ---
 
 # Google CLI
@@ -19,28 +19,28 @@ The system Python does NOT have the required dependencies. You must use the virt
 
 ```bash
 # Windows
-& "<path_to_repo>\google\.venv\Scripts\python.exe" .\GoogleCLI.py <args>
+& "C:\Users\amori\Documents\CLI-Functions\google-cli\.venv\Scripts\python.exe" .\GoogleCLI.py <args>
 
 # Linux / macOS
-<path_to_repo>/google/.venv/bin/python ./GoogleCLI.py <args>
+/path/to/google-cli/.venv/bin/python ./GoogleCLI.py <args>
 ```
 
 Alternative — activate venv first, then use `python`:
 
 ```bash
 # Windows
-& "<path_to_repo>\google\.venv\Scripts\Activate.ps1"
+& "C:\Users\amori\Documents\CLI-Functions\google-cli\.venv\Scripts\Activate.ps1"
 python .\GoogleCLI.py <args>
 
 # Linux / macOS
-source <path_to_repo>/google/.venv/bin/activate
+source /path/to/google-cli/.venv/bin/activate
 python ./GoogleCLI.py <args>
 ```
 
 ### 2. Always pass --token-path
 
 ```bash
---token-path <path_to_token.json>
+--token-path C:\Users\amori\Documents\CLI-Functions\google-cli\token\token.json
 ```
 
 This is required for all Gmail (except `send-smtp`), Drive, and Calendar commands.
@@ -50,13 +50,13 @@ This is required for all Gmail (except `send-smtp`), Drive, and Calendar command
 **Base command template** (use this for every call):
 
 ```bash
-<path_to_venv_python> GoogleCLI.py --token-path <path_to_token.json> <service> <command> <flags>
+"C:\Users\amori\Documents\CLI-Functions\google-cli\.venv\Scripts\python.exe" GoogleCLI.py --token-path C:\Users\amori\Documents\CLI-Functions\google-cli\token\token.json <service> <command> <flags>
 ```
 
-Working directory for all commands should be the directory containing `GoogleCLI.py`.
+Working directory for all commands should be `C:\Users\amori\Documents\CLI-Functions\google-cli`.
 
 If dependencies are missing even with venv, install them using the venv's pip: 
-`pip install google-auth google-auth-oauthlib google-api-python-client python-dotenv beautifulsoup4 html2text`
+`& "C:\Users\amori\Documents\CLI-Functions\google-cli\.venv\Scripts\pip.exe" install google-auth google-auth-oauthlib google-api-python-client python-dotenv beautifulsoup4 html2text`
 
 ## Gmail — Reading & Searching
 
@@ -91,7 +91,7 @@ The output of `list`, `search`, and `read-by-id` includes a `Message-ID` field f
 
 ## Gmail — Sending Emails (SMTP)
 
-SMTP credentials (`EMAIL_USER` and `EMAIL_PASSWORD`) are loaded automatically from the `.env` file at the root of the project or `<path_to_.env>`. There are no command-line flags for credentials — they must be in the `.env` file.
+SMTP credentials (`EMAIL_USER` and `EMAIL_PASSWORD`) are loaded automatically from the `.env` file at `C:\Users\amori\Documents\CLI-Functions\.env`. There are no command-line flags for credentials — they must be in the `.env` file.
 
 ### Send command structure
 
@@ -126,7 +126,7 @@ gmail send-smtp --subject "Re: Original Subject" --body "Reply text" --to "perso
 
 ```
 drive list --max-results 10
-drive download --file-name "report.pdf" --destination-path "<path_to_downloads_folder>"
+drive download --file-name "report.pdf" --destination-path "$env:TEMP"
 ```
 
 ## Calendar
@@ -141,14 +141,14 @@ Optional flags for `create-event`: `--location`, `--description`, `--attendee` (
 ## Output Modes
 
 - Global output format: `--format text|json|csv|ndjson` (default: `text`).
-- Optional file output: `--output-file <path_to_output_file.json>`.
+- Optional file output: `--output-file C:\path\to\output_file.json`.
 - In `json`/`ndjson`, scalar responses (e.g. `gmail count`) are emitted as JSON numbers.
 - In `csv`, nested payloads (e.g. `gmail analyze`) are flattened into tabular rows with a `section` column.
 
 Example with format and output file:
 
 ```
---format json --output-file "<path_to_temp_dir>/inbox_summary.json" gmail analyze --label INBOX --max-scan 0 --top 20
+--format json --output-file "$env:TEMP/inbox_summary.json" gmail analyze --label INBOX --max-scan 0 --top 20
 ```
 
 ## Auth
@@ -173,9 +173,9 @@ If OAuth client config is needed, provide one of: `--client-config-file`, `--cli
 
 | Error | Cause | Fix |
 |---|---|---|
-| `SMTP credentials missing` | `.env` file not found or missing `EMAIL_USER`/`EMAIL_PASSWORD` | Ensure `.env` exists at `<path_to_.env>` with both vars set |
+| `SMTP credentials missing` | `.env` file not found or missing `EMAIL_USER`/`EMAIL_PASSWORD` | Ensure `.env` exists at `C:\Users\amori\Documents\CLI-Functions\.env` with both vars set |
 | `Client config not found` | Token path not being used, or token lacks required scopes | Pass `--token-path` explicitly. If scope issue, provide OAuth app config and re-consent |
 | `ModuleNotFoundError` / `Missing ...` | Not using the venv Python | Use the full path to your virtual environment Python executable instead of simply `python` |
 | `--output-file` fails | Destination directory not writable | Ensure the directory exists and is writable |
 
-Check token scopes: `<path_to_venv_python> -c "import json; print(json.load(open(r'<path_to_token.json>')).get('scopes'))"`
+Check token scopes: `& "C:\Users\amori\Documents\CLI-Functions\google-cli\.venv\Scripts\python.exe" -c "import json; print(json.load(open(r'C:\Users\amori\Documents\CLI-Functions\google-cli\token\token.json')).get('scopes'))"`
