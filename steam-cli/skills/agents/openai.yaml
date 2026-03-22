@@ -1,0 +1,6 @@
+interface:
+  display_name: "Steam CLI"
+  short_description: "Use local Steam CLI for app lookup and client actions"
+  default_prompt: "Use $steam-cli to resolve game names, fetch Steam metadata, and control the local Steam client safely."
+policy:
+  allow_implicit_invocation: true
